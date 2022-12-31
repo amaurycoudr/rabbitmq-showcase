@@ -1,6 +1,8 @@
 import amqp from 'amqplib';
 
 import express from 'express';
+import mongoose from 'mongoose';
+import { Order } from './Order';
 
 const app = express();
 app.use(express.json());
@@ -17,22 +19,36 @@ app.get('/', (req, res) => {
 
 app.post('/orders', (req, res) => {
     console.log("[POST] /orders");
+    console.log(req.body);
+
+    const order = new Order({
+        email: req.body?.email,
+        orderStatus: 'pending',
+    });
+    order.save();
+
     channel.sendToQueue(queue, Buffer.from(JSON.stringify({
-        task: "CREATE_ORDER", data: {
-            name: req.body?.name,
-        }
+        task: "CREATE_ORDER", data: order
     })));
-    res.send('Order created').status(201);
+
+    res.send(order).status(201);
 });
 
-app.get('/orders', (req, res) => {
-    res.send('Order list');
+app.get('/orders', async (req, res) => {
+    const orders = await Order.find()
+    res.send(orders);
 });
 
-app.get('/orders/:id', (req, res) => {
+app.get('/orders/:id', async (req, res) => {
     const id = req.params.id;
     console.log("[GET] /order/" + id);
-    res.send('Order details');
+    try {
+        const order = await Order.findById(id);
+        res.send(order);
+    } catch {
+        res.status(404).send();
+    }
+
 });
 
 app.listen(3000, async () => {
@@ -41,14 +57,13 @@ app.listen(3000, async () => {
     await new Promise(resolve => setTimeout(resolve, 8000));
 
     // Connect to rabbitmq
-    const connection = await amqp.connect('amqp://rabbitmq').catch(function (error) {
-        console.error('%s while dialing rabbitmq', error);
-        process.exit(1);
-    });
+    const connection = await amqp.connect('amqp://rabbitmq')
     channel = await connection.createChannel();
+    console.log('Connected to rabbitmq');
 
-    // Connect to mongo
-
+    // Connect to mongo with mongoose
+    await mongoose.connect('mongodb://db:27017/test')
+    console.log('Connected to mongo');
 
     console.log('Server started on port 3000');
 });
