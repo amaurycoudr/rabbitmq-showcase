@@ -2,11 +2,16 @@ import amqp from 'amqplib';
 
 (async () => {
     const queue = 'tasks';
-    const conn = await amqp.connect('amqp://rabbitmq');
 
+    // Wait for rabbitmq to start TODO: find a better way
+    await new Promise(resolve => setTimeout(resolve, 8000));
+
+    const conn = await amqp.connect('amqp://rabbitmq').catch(function (error) {
+        console.error('%s while dialing rabbitmq', error);
+        process.exit(1);
+    });
     const listener = await conn.createChannel();
     await listener.assertQueue(queue);
-
 
     listener.consume(queue, (msg: any) => {
         if (msg !== null) {
